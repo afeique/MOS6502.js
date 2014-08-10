@@ -39,12 +39,7 @@ function MOS6502(core, options)
    // Obviously we'll be needing the core object's functions and the other options again.
    this.core = core;
    this.options = (typeof options == "object") ? options : {};
-   
-   ////////////////////////////////////////////////////////
-   ///TODO NOPE
-   ////////////////////////////////////////////////////////
-   return this;
-   
+
    // There's tons of stuff in this object,
    //  but just these three functions make up the public API.
    return {
@@ -68,8 +63,11 @@ MOS6502.prototype.reset = function()
    this.pc = this.core.mem_read(0xfffc) | (this.core.mem_read(0xfffd) << 8);
    this.flags = {N:0, V:0, D:0, I:1, Z:0, C:0};
    
-   this.interrupt_requested = false;
+   this.irq_requested = false;
    this.nmi_requested = false;
+   
+   this.deferred_i_flag_change = false;
+   this.new_i_flag_state = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -116,7 +114,21 @@ MOS6502.prototype.run_instruction = function()
    this.pc = (this.pc + 1) & 0xffff;
    
    // Handle any interrupt request that arrived during the previous instruction.
-   if ((this.interrupt_requested && !this.flags.I) || this.nmi_requested)
+   // Poll for any interrupts that arrived during the previous instruction.
+   // Do this before the CLI/SEI operation takes place,
+   //  to simulate the hardware doing this poll 1 cycle into the 2 cycle instruction.
+   var doing_interrupt = (this.irq_requested && !this.flags.I) || this.nmi_requested;
+   
+   // If that instruction wanted to modify the I flag,
+   //  defer that operation until the next instruction as appropriate.
+   if (this.deferred_i_flag_change)
+   {
+      this.flags.I = this.new_i_flag_state;
+      this.deferred_i_flag_change = false;
+   }
+   
+   // Now handle the interrupt if we have one.
+   if (doing_interrupt)
    {
       // This is going to take a few more cycles.
       this.cycle_counter += 7;
@@ -130,7 +142,7 @@ MOS6502.prototype.run_instruction = function()
       var vector = this.nmi_requested ? 0xfffa : 0xfffe;
       this.pc = this.core.mem_read(vector) | (this.core.mem_read(vector + 1) << 8);
       // The interrupt has now been handled, it's no longer being requested,
-      this.interrupt_requested = false;
+      this.irq_requested = false;
       this.nmi_requested = false;
    }
    
@@ -147,13 +159,9 @@ MOS6502.prototype.run_instruction = function()
 MOS6502.prototype.interrupt = function(non_maskable)
 {
    if (non_maskable)
-   {
       this.nmi_requested = true;
-   }
    else
-   {
-      this.interrupt_requested = true;
-   }
+      this.irq_requested = true;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -257,13 +265,9 @@ MOS6502.prototype.do_asl = function(address)
    this.set_nz_flags(operand);
    
    if (address === undefined)
-   {
       this.a = operand;
-   }
    else
-   {
       this.core.mem_write(address, operand);
-   }
 };
 
 MOS6502.prototype.do_lsr = function(address)
@@ -276,13 +280,9 @@ MOS6502.prototype.do_lsr = function(address)
    this.flags.Z = (operand === 0) ? 1 : 0;
    
    if (address === undefined)
-   {
       this.a = operand;
-   }
    else
-   {
       this.core.mem_write(address, operand);
-   }
 };
 
 MOS6502.prototype.do_rol = function(address)
@@ -296,13 +296,9 @@ MOS6502.prototype.do_rol = function(address)
    this.set_nz_flags(operand);
    
    if (address === undefined)
-   {
       this.a = operand;
-   }
    else
-   {
       this.core.mem_write(address, operand);
-   }
 };
 
 MOS6502.prototype.do_ror = function(address)
@@ -317,13 +313,9 @@ MOS6502.prototype.do_ror = function(address)
    this.flags.Z = (operand === 0) ? 1 : 0;
    
    if (address === undefined)
-   {
       this.a = operand;
-   }
    else
-   {
       this.core.mem_write(address, operand);
-   }
 };
 
 MOS6502.prototype.do_bit = function(operand)
@@ -674,9 +666,7 @@ MOS6502.prototype.get_absolute_x_operand = function()
        
    // Add one cycle if our read crossed a page boundary.
    if ((this.pc & 0xff) === 0x01)
-   {
       this.cycle_counter++;
-   }
    
    return operand;
 };
@@ -691,9 +681,7 @@ MOS6502.prototype.get_absolute_y_operand = function()
        
    // Add one cycle if our read crossed a page boundary.
    if ((this.pc & 0xff) === 0x01)
-   {
       this.cycle_counter++;
-   }
    
    return operand;
 };
@@ -726,9 +714,7 @@ MOS6502.prototype.get_indirect_y_address = function()
        
    // Add one cycle if our read crossed a page boundary.
    if (((address + this.y) & 0xff) === 0xff)
-   {
       this.cycle_counter++;
-   }
    
    return address & 0xffff;
 };
@@ -787,7 +773,18 @@ MOS6502.prototype.instructions = [
 /* AND $LL */ function() { this.do_and(this.get_zero_page_operand()); },
 /* ROL $LL */ function() { this.do_rol(this.get_imm8_operand()); },
 /* RLA $LL (Undocumented) */ function() { this.do_rla(this.get_imm8_operand()); },
-/* PLP */ function() { this.set_status_register(this.pop_byte()); },
+/* PLP */ function() {
+   // Store the current state of the I flag, so we can defer changing it to the new value.
+   var old_i_flag = this.flags.I;
+   
+   // Set the new flags, including the I flag.
+   this.set_status_register(this.pop_byte());
+   
+   // Store the new I flag value, but overwrite it with the old one until later.
+   this.deferred_i_flag_change = true;
+   this.new_i_flag_state = this.flags.I;
+   this.flags.I = old_i_flag;
+},
 /* AND #$BB */ function() { this.do_and(this.get_imm8_operand()); },
 /* ROL A */ function() { this.do_rol(); },
 /* ANC #$BB (Undocumented) */ function() { this.do_anc(this.get_imm8_operand()); },
@@ -839,7 +836,7 @@ MOS6502.prototype.instructions = [
 /* EOR $LL, X */ function() { this.do_eor(this.get_zero_page_x_operand()); },
 /* LSR $LL, X */ function() { this.do_lsr((this.get_imm8_operand() + this.x) & 0xff); },
 /* LSE $LL, X (Undocumented) */ function() { this.do_lse((this.get_imm8_operand() + this.x) & 0xff); },
-/* CLI */ function() { this.flags.I = 0; },
+/* CLI */ function() { this.deferred_i_flag_change = true; this.new_i_flag_state = 0; },
 /* EOR $HHLL, Y */ function() { this.do_eor(this.get_absolute_y_operand()); },
 /* NOP (Undocumented) */ function() { },
 /* LSE $HHLL, Y (Undocumented) */ function() { this.do_lse((this.get_imm16_operand() + this.y) & 0xffff); },
@@ -878,7 +875,7 @@ MOS6502.prototype.instructions = [
 /* ADC $LL, X */ function() { this.do_adc(this.get_zero_page_x_operand()); },
 /* ROR $LL, X */ function() { this.do_ror((this.get_imm8_operand() + this.x) & 0xff); },
 /* RRA $LL, X (Undocumented) */ function() { this.do_rra((this.get_imm8_operand() + this.x) & 0xff); },
-/* SEI */ function() { this.flags.I = 1; },
+/* SEI */ function() { this.deferred_i_flag_change = true; this.new_i_flag_state = 1; },
 /* ADC $HHLL, Y */ function() { this.do_adc(this.get_absolute_y_operand()); },
 /* NOP (Undocumented) */ function() { },
 /* RRA $HHLL, Y (Undocumented) */ function() { this.do_rra((this.get_imm16_operand() + this.y) & 0xffff); },
