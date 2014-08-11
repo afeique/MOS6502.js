@@ -92,12 +92,12 @@ MOS6502.prototype.run_instruction = function()
       2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, // 5
       6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 5, 4, 6, 6, // 6
       2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, // 7
-      2, 6, 2, 6, 3, 3, 2, 3, 2, 2, 2, 2, 4, 4, 4, 4, // 8
-      2, 6, 2, 6, 4, 4, 2, 3, 2, 5, 2, 5, 5, 5, 5, 5, // 9
+      2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4, // 8
+      2, 6, 2, 6, 4, 4, 4, 4, 2, 5, 2, 5, 5, 5, 5, 5, // 9
       2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4, // A
       2, 5, 2, 5, 4, 4, 4, 4, 2, 4, 2, 4, 4, 4, 4, 4, // B
-      2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 3, 6, // C
-      2, 5, 2, 8, 4, 4, 6, 6, 2, 3, 2, 7, 4, 4, 7, 7, // D
+      2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6, // C
+      2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, // D
       2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6, // E
       2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7  // F
    ];
@@ -105,6 +105,7 @@ MOS6502.prototype.run_instruction = function()
    // Get the opcode to execute, and its associated function.
    var opcode = this.core.mem_read(this.pc),
        func = this.instructions[opcode];
+  
    // Get the "normal" cycle count for this opcode.
    // The instruction function may increase this under certain circumstances.
    this.cycle_counter = cycle_counts[opcode];
@@ -229,30 +230,29 @@ MOS6502.prototype.set_nz_flags = function(value)
 ///////////////////////////////////////////////////////////////////////////////
 MOS6502.prototype.do_relative_branch = function(test)
 {
+   // Advance the PC to the operand in any case.
+   this.pc = (this.pc + 1) & 0xffff;
+
    if (test)
    {
       // Taking a branch always uses one extra cycle.
       this.cycle_counter++;
    
       // Create a signed offset from the unsigned byte we read from memory.
-      var offset = this.core.mem_read(this.pc + 1);
+      var offset = this.core.mem_read(this.pc);
       if (offset & 0x80)
       {
          offset = -((0xff & ~offset) + 1);
       }
       
       // If the PC is crossing a page boundary, that's one more cycle.
-      if ((this.pc & 0xff00) !== ((this.pc + offset - 1) & 0xff00))
+      if (((this.pc + 1) ^ (this.pc + 1 + offset)) & 0x100)
       {
          this.cycle_counter++;
       }
       
-      this.pc = (this.pc + offset + 1) & 0xffff;
-   }
-   else
-   {
-      // Not taking the branch; just bump the PC past the operand.
-      this.pc = (this.pc + 1) & 0xffff;
+      // Finally actually set the new PC.
+      this.pc = (this.pc + offset) & 0xffff;
    }
 };
 
@@ -662,10 +662,11 @@ MOS6502.prototype.get_absolute_x_operand = function()
    var immediate_lo = this.core.mem_read(this.pc);
    this.pc = (this.pc + 1) & 0xffff;
    var immediate_hi = this.core.mem_read(this.pc),
-       operand = this.core.mem_read((immediate_lo | (immediate_hi << 8)) + this.x);
+       base_address = (immediate_lo | (immediate_hi << 8)),
+       operand = this.core.mem_read(base_address + this.x);
        
    // Add one cycle if our read crossed a page boundary.
-   if ((this.pc & 0xff) === 0x01)
+   if ((this.x + (base_address & 0xff)) >= 0x100)
       this.cycle_counter++;
    
    return operand;
@@ -677,10 +678,11 @@ MOS6502.prototype.get_absolute_y_operand = function()
    var immediate_lo = this.core.mem_read(this.pc);
    this.pc = (this.pc + 1) & 0xffff;
    var immediate_hi = this.core.mem_read(this.pc),
-       operand = this.core.mem_read((immediate_lo | (immediate_hi << 8)) + this.y);
+       base_address = (immediate_lo | (immediate_hi << 8)),
+       operand = this.core.mem_read(base_address + this.y);
        
    // Add one cycle if our read crossed a page boundary.
-   if ((this.pc & 0xff) === 0x01)
+   if ((this.y + (base_address & 0xff)) >= 0x100)
       this.cycle_counter++;
    
    return operand;
@@ -709,11 +711,11 @@ MOS6502.prototype.get_indirect_y_address = function()
 {
    this.pc = (this.pc + 1) & 0xffff;
    var immediate = this.core.mem_read(this.pc),
-       address = this.y + (this.core.mem_read(immediate) |
-                 (this.core.mem_read((immediate + 1) & 0xff) << 8));
+       base_address = this.core.mem_read(immediate) | (this.core.mem_read((immediate + 1) & 0xff) << 8),
+       address = this.y + base_address;
        
    // Add one cycle if our read crossed a page boundary.
-   if (((address + this.y) & 0xff) === 0xff)
+   if (((base_address & 0xff) + this.y) >= 0x100)
       this.cycle_counter++;
    
    return address & 0xffff;
@@ -722,6 +724,9 @@ MOS6502.prototype.get_indirect_y_address = function()
 ///////////////////////////////////////////////////////////////////////////////
 /// This table contains the implementations for all instructions.
 /// Most of them simply call some combination of the functions above.
+/// Note that several undocumented instructions overwrite the cycle counter,
+///  because they call functions that add oops cycles that the undocumented
+///  instructions are not actually subject to.
 ///////////////////////////////////////////////////////////////////////////////
 MOS6502.prototype.instructions = [
 /* BRK */ function() {
@@ -735,7 +740,7 @@ MOS6502.prototype.instructions = [
    this.pc = ((this.core.mem_read(0xfffe) | (this.core.mem_read(0xffff) << 8)) - 1) & 0xffff;
 },
 /* ORA ($BB, X) */ function() { this.do_ora(this.get_indirect_x_operand()); },
-/* Kill */ MOS6502.prototype.do_kill,
+/* Kill */ function() { this.do_kill(); },
 /* ASO ($BB, X) (Undocumented) */ function() { this.do_aso(this.get_indirect_x_address()); },
 /* Two-byte NOP (Undocumented) */ MOS6502.prototype.get_imm8_operand,
 /* ORA $LL */ function() { this.do_ora(this.get_zero_page_operand()); },
@@ -751,8 +756,9 @@ MOS6502.prototype.instructions = [
 /* ASO $HHLL (Undocumented) */ function() { this.do_aso(this.get_imm16_operand()); },
 /* BPL $BB */ function() { this.do_relative_branch(this.flags.N === 0); },
 /* ORA ($LL), Y */ function() { this.do_ora(this.get_indirect_y_operand()); },
-/* Kill */ MOS6502.prototype.do_kill,
-/* ASO ($LL), Y (Undocumented) */ function() { this.do_aso(this.get_indirect_y_address()); },
+/* Kill */ function() { this.do_kill(); },
+/* ASO ($LL), Y (Undocumented) */ function() { this.do_aso(this.get_indirect_y_address());
+                                               this.cycle_counter = 8; },
 /* Two-byte NOP (Undocumented) */ MOS6502.prototype.get_imm8_operand,
 /* ORA $LL, X */ function() { this.do_ora(this.get_zero_page_x_operand()); },
 /* ASL $LL, X */ function() { this.do_asl((this.get_imm8_operand() + this.x) & 0xff); },
@@ -761,13 +767,13 @@ MOS6502.prototype.instructions = [
 /* ORA $HHLL, Y */ function() { this.do_ora(this.get_absolute_y_operand()); },
 /* NOP (Undocumented) */ function() { },
 /* ASO $HHLL, Y (Undocumented) */ function() { this.do_aso((this.get_imm16_operand() + this.y) & 0xffff); },
-/* Three-byte NOP (Undocumented) */ MOS6502.prototype.get_imm16_operand,
+/* Three-byte NOP (Undocumented) */ MOS6502.prototype.get_absolute_x_operand,
 /* ORA $HHLL, X */ function() { this.do_ora(this.get_absolute_x_operand()); },
 /* ASL $HHLL, X */ function() { this.do_asl((this.get_imm16_operand() + this.x) & 0xffff); },
 /* ASO $HHLL, X (Undocumented) */ function() { this.do_aso((this.get_imm16_operand() + this.x) & 0xffff); },
 /* JSR $HHLL */ function() { var address = this.get_imm16_operand(); this.push_pc(); this.pc = address - 1; },
 /* AND ($BB, X) */ function() { this.do_and(this.get_indirect_x_operand()); },
-/* Kill */ MOS6502.prototype.do_kill,
+/* Kill */ function() { this.do_kill(); },
 /* RLA ($BB, X) (Undocumented) */ function() { this.do_rla(this.get_indirect_x_address()); },
 /* BIT $LL */ function() { this.do_bit(this.get_zero_page_operand()); },
 /* AND $LL */ function() { this.do_and(this.get_zero_page_operand()); },
@@ -794,8 +800,9 @@ MOS6502.prototype.instructions = [
 /* RLA $HHLL (Undocumented) */ function() { this.do_rla(this.get_imm16_operand()); },
 /* BMI $BB */ function() { this.do_relative_branch(this.flags.N === 1); },
 /* AND ($LL), Y */ function() { this.do_and(this.get_indirect_y_operand()); },
-/* Kill */ MOS6502.prototype.do_kill,
-/* RLA ($LL), Y (Undocumented) */ function() { this.do_rla(this.get_indirect_y_address()); },
+/* Kill */ function() { this.do_kill(); },
+/* RLA ($LL), Y (Undocumented) */ function() { this.do_rla(this.get_indirect_y_address()); 
+                                               this.cycle_counter = 8;},
 /* Two-byte NOP (Undocumented) */ MOS6502.prototype.get_imm8_operand,
 /* AND $LL, X */ function() { this.do_and(this.get_zero_page_x_operand()); },
 /* ROL $LL, X */ function() { this.do_rol((this.get_imm8_operand() + this.x) & 0xff); },
@@ -804,7 +811,7 @@ MOS6502.prototype.instructions = [
 /* AND $HHLL, Y */ function() { this.do_and(this.get_absolute_y_operand()); },
 /* NOP (Undocumented) */ function() { },
 /* RLA $HHLL, Y (Undocumented) */ function() { this.do_rla((this.get_imm16_operand() + this.y) & 0xffff); },
-/* Three-byte NOP (Undocumented) */ MOS6502.prototype.get_imm16_operand,
+/* Three-byte NOP (Undocumented) */ MOS6502.prototype.get_absolute_x_operand,
 /* AND $HHLL, X */ function() { this.do_and(this.get_absolute_x_operand()); },
 /* ROL $HHLL, X */ function() { this.do_rol((this.get_imm16_operand() + this.x) & 0xffff); },
 /* RLA $HHLL, X (Undocumented) */ function() { this.do_rla((this.get_imm16_operand() + this.x) & 0xffff); },
@@ -814,7 +821,7 @@ MOS6502.prototype.instructions = [
    this.pc = (this.pc - 1) & 0xffff;
 },
 /* EOR ($LL, X) */ function() { this.do_eor(this.get_indirect_x_operand()); },
-/* Kill */ MOS6502.prototype.do_kill,
+/* Kill */ function() { this.do_kill(); },
 /* LSE ($BB, X) (Undocumented) */ function() { this.do_lse(this.get_indirect_x_address()); },
 /* Two-byte NOP (Undocumented) */ MOS6502.prototype.get_imm8_operand,
 /* EOR $LL */ function() { this.do_eor(this.get_zero_page_operand()); },
@@ -830,8 +837,9 @@ MOS6502.prototype.instructions = [
 /* LSE $HHLL (Undocumented) */ function() { this.do_lse(this.get_imm16_operand()); },
 /* BVC $BB */ function() { this.do_relative_branch(this.flags.V === 0); },
 /* EOR ($LL), Y */ function() { this.do_eor(this.get_indirect_y_operand()); },
-/* Kill */ MOS6502.prototype.do_kill,
-/* LSE ($LL), Y (Undocumented) */ function() { this.do_lse(this.get_indirect_y_address()); },
+/* Kill */ function() { this.do_kill(); },
+/* LSE ($LL), Y (Undocumented) */ function() { this.do_lse(this.get_indirect_y_address()); 
+                                               this.cycle_counter = 8;},
 /* Two-byte NOP (Undocumented) */ MOS6502.prototype.get_imm8_operand,
 /* EOR $LL, X */ function() { this.do_eor(this.get_zero_page_x_operand()); },
 /* LSR $LL, X */ function() { this.do_lsr((this.get_imm8_operand() + this.x) & 0xff); },
@@ -840,7 +848,7 @@ MOS6502.prototype.instructions = [
 /* EOR $HHLL, Y */ function() { this.do_eor(this.get_absolute_y_operand()); },
 /* NOP (Undocumented) */ function() { },
 /* LSE $HHLL, Y (Undocumented) */ function() { this.do_lse((this.get_imm16_operand() + this.y) & 0xffff); },
-/* Three-byte NOP (Undocumented) */ MOS6502.prototype.get_imm16_operand,
+/* Three-byte NOP (Undocumented) */ MOS6502.prototype.get_absolute_x_operand,
 /* EOR $HHLL, X */ function() { this.do_eor(this.get_absolute_x_operand()); },
 /* LSR $HHLL, X */ function() { this.do_lsr((this.get_imm16_operand() + this.x) & 0xffff); },
 /* LSE $HHLL, X (Undocumented) */ function() { this.do_lse((this.get_imm16_operand() + this.x) & 0xffff); },
@@ -869,8 +877,9 @@ MOS6502.prototype.instructions = [
 /* RRA $HHLL (Undocumented) */ function() { this.do_rra(this.get_imm16_operand()); },
 /* BVS $BB */ function() { this.do_relative_branch(this.flags.V === 1); },
 /* ADC ($LL), Y */ function() { this.do_adc(this.get_indirect_y_operand()); },
-/* Kill */ MOS6502.prototype.do_kill,
-/* RRA ($LL), Y (Undocumented) */ function() { this.do_rra(this.get_indirect_y_address()); },
+/* Kill */ function() { this.do_kill(); },
+/* RRA ($LL), Y (Undocumented) */ function() { this.do_rra(this.get_indirect_y_address()); 
+                                               this.cycle_counter = 8;},
 /* Two-byte NOP (Undocumented) */ MOS6502.prototype.get_imm8_operand,
 /* ADC $LL, X */ function() { this.do_adc(this.get_zero_page_x_operand()); },
 /* ROR $LL, X */ function() { this.do_ror((this.get_imm8_operand() + this.x) & 0xff); },
@@ -879,7 +888,7 @@ MOS6502.prototype.instructions = [
 /* ADC $HHLL, Y */ function() { this.do_adc(this.get_absolute_y_operand()); },
 /* NOP (Undocumented) */ function() { },
 /* RRA $HHLL, Y (Undocumented) */ function() { this.do_rra((this.get_imm16_operand() + this.y) & 0xffff); },
-/* Three-byte NOP (Undocumented) */ MOS6502.prototype.get_imm16_operand,
+/* Three-byte NOP (Undocumented) */ MOS6502.prototype.get_absolute_x_operand,
 /* ADC $HHLL, X */ function() { this.do_adc(this.get_absolute_x_operand()); },
 /* ROR $HHLL, X */ function() { this.do_ror((this.get_imm16_operand() + this.x) & 0xffff); },
 /* RRA $HHLL, X (Undocumented) */ function() { this.do_rra((this.get_imm16_operand() + this.x) & 0xffff); },
@@ -900,9 +909,9 @@ MOS6502.prototype.instructions = [
 /* STX $HHLL */ function() { this.do_stx(this.get_imm16_operand()); },
 /* SAX $HHLL (Undocumented) */ function() { this.do_sax(this.get_imm16_operand()); },
 /* BCC $BB */ function() { this.do_relative_branch(this.flags.C === 0); },
-/* STA ($LL), Y */ function() { this.do_sta(this.get_indirect_y_address()); },
-/* Kill */ MOS6502.prototype.do_kill,
-/* Unstable */ MOS6502.prototype.do_unstable,
+/* STA ($LL), Y */ function() { this.do_sta(this.get_indirect_y_address()); this.cycle_counter = 6; },
+/* Kill */ function() { this.do_kill(); },
+/* Two-byte Unstable */ function() { this.do_unstable(); this.pc = (this.pc + 1) & 0xffff; },
 /* STY $LL, X */ function() { this.do_sty((this.get_imm8_operand() + this.x) & 0xff); },
 /* STA $LL, X */ function() { this.do_sta((this.get_imm8_operand() + this.x) & 0xff); },
 /* STX $LL, Y */ function() { this.do_stx((this.get_imm8_operand() + this.y) & 0xff); },
@@ -910,11 +919,11 @@ MOS6502.prototype.instructions = [
 /* TYA */ function() { this.a = this.y; this.set_nz_flags(this.a); },
 /* STA $HHLL, Y */ function() { this.do_sta((this.get_imm16_operand() + this.y) & 0xffff); },
 /* TXS */ function() { this.sp = this.x; },
-/* Unstable */ MOS6502.prototype.do_unstable,
-/* Unstable */ MOS6502.prototype.do_unstable,
+/* Three-byte Unstable */ function() { this.do_unstable(); this.pc = (this.pc + 2) & 0xffff; },
+/* Three-byte Unstable */ function() { this.do_unstable(); this.pc = (this.pc + 2) & 0xffff; },
 /* STA $HHLL, X */ function() { this.do_sta((this.get_imm16_operand() + this.x) & 0xffff); },
-/* Unstable */ MOS6502.prototype.do_unstable,
-/* Unstable */ MOS6502.prototype.do_unstable,
+/* Three-byte Unstable */ function() { this.do_unstable(); this.pc = (this.pc + 2) & 0xffff; },
+/* Three-byte Unstable */ function() { this.do_unstable(); this.pc = (this.pc + 2) & 0xffff; },
 /* LDY #$BB */ function() { this.do_ldy(this.get_imm8_operand()); },
 /* LDA ($BB, X) */ function() { this.do_lda(this.get_indirect_x_operand()); },
 /* LDX #$BB */ function() { this.do_ldx(this.get_imm8_operand()); },
@@ -933,7 +942,7 @@ MOS6502.prototype.instructions = [
 /* LAX $HHLL (Undocumented) */ function() { this.do_lax(this.get_absolute_operand()); },
 /* BCS $BB */ function() { this.do_relative_branch(this.flags.C === 1); },
 /* LDA ($LL), Y */ function() { this.do_lda(this.get_indirect_y_operand()); },
-/* Kill */ MOS6502.prototype.do_kill,
+/* Kill */ function() { this.do_kill(); },
 /* LAX ($LL), Y (Undocumented) */ function() { this.do_lax(this.get_indirect_y_operand()); },
 /* LDY $LL, X */ function() { this.do_ldy(this.get_zero_page_x_operand()); },
 /* LDA $LL, X */ function() { this.do_lda(this.get_zero_page_x_operand()); },
@@ -965,8 +974,9 @@ MOS6502.prototype.instructions = [
 /* DCP $HHLL (Undocumented) */ function() { this.do_dcp(this.get_imm16_operand()); },
 /* BNE $BB */ function() { this.do_relative_branch(this.flags.Z === 0); },
 /* CMP ($LL), Y */ function() { this.do_cmp(this.get_indirect_y_operand()); },
-/* Kill */ MOS6502.prototype.do_kill,
-/* DCP ($LL), Y (Undocumented) */ function() { this.do_dcp(this.get_indirect_y_address()); },
+/* Kill */ function() { this.do_kill(); },
+/* DCP ($LL), Y (Undocumented) */ function() { this.do_dcp(this.get_indirect_y_address()); 
+                                               this.cycle_counter = 8;},
 /* Two-byte NOP (Undocumented) */ MOS6502.prototype.get_imm8_operand,
 /* CMP $LL, X */ function() { this.do_cmp(this.get_zero_page_x_operand()); },
 /* DEC $LL, X */ function() { this.do_dec((this.get_imm8_operand() + this.x) & 0xff); },
@@ -975,7 +985,7 @@ MOS6502.prototype.instructions = [
 /* CMP $HHLL, Y */ function() { this.do_cmp(this.get_absolute_y_operand()); },
 /* NOP (Undocumented) */ function() { },
 /* DCP $HHLL, Y (Undocumented) */ function() { this.do_dcp((this.get_imm16_operand() + this.y) & 0xffff); },
-/* Three-byte NOP (Undocumented) */ MOS6502.prototype.get_imm16_operand,
+/* Three-byte NOP (Undocumented) */ MOS6502.prototype.get_absolute_x_operand,
 /* CMP $HHLL, X */ function() { this.do_cmp(this.get_absolute_x_operand()); },
 /* DEC $HHLL, X */ function() { this.do_dec((this.get_imm16_operand() + this.x) & 0xffff); },
 /* DCP $HHLL, X (Undocumented) */ function() { this.do_dcp((this.get_imm16_operand() + this.x) & 0xffff); },
@@ -997,8 +1007,9 @@ MOS6502.prototype.instructions = [
 /* INS $HHLL (Undocumented) */ function() { this.do_ins(this.get_imm16_operand()); },
 /* BEQ $BB */ function() { this.do_relative_branch(this.flags.Z === 1); },
 /* SBC ($LL), Y */ function() { this.do_sbc(this.get_indirect_y_operand()); },
-/* Kill */ MOS6502.prototype.do_kill,
-/* INS ($LL), Y (Undocumented) */ function() { this.do_ins(this.get_indirect_y_address()); },
+/* Kill */ function() { this.do_kill(); },
+/* INS ($LL), Y (Undocumented) */ function() { this.do_ins(this.get_indirect_y_address()); 
+                                               this.cycle_counter = 8;},
 /* Two-byte NOP (Undocumented) */ MOS6502.prototype.get_imm8_operand,
 /* SBC $LL, X */ function() { this.do_sbc(this.get_zero_page_x_operand()); },
 /* INC $LL, X */ function() { this.do_inc((this.get_imm8_operand() + this.x) & 0xff); },
@@ -1007,7 +1018,7 @@ MOS6502.prototype.instructions = [
 /* SBC $HHLL, Y */ function() { this.do_sbc(this.get_absolute_y_operand()); },
 /* NOP (Undocumented) */ function() { },
 /* INS $HHLL, Y (Undocumented) */ function() { this.do_ins((this.get_imm16_operand() + this.y) & 0xffff); },
-/* Three-byte NOP (Undocumented) */ MOS6502.prototype.get_imm16_operand,
+/* Three-byte NOP (Undocumented) */ MOS6502.prototype.get_absolute_x_operand,
 /* SBC $HHLL, X */ function() { this.do_sbc(this.get_absolute_x_operand()); },
 /* INC $HHLL, X */ function() { this.do_inc((this.get_imm16_operand() + this.x) & 0xffff); },
 /* INS $HHLL, X (Undocumented) */ function() { this.do_ins((this.get_imm16_operand() + this.x) & 0xffff); }
