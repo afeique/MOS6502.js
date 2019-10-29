@@ -3,7 +3,7 @@
 ///
 /// @brief Emulator for the MOS Technologies 6502 microprocessor
 ///
-/// @author Matthew Howell
+/// @author Molly Howell
 ///
 /// @remarks
 ///  This module is a simple, straightforward instruction interpreter.
@@ -13,7 +13,7 @@
 ///  The code and the comments in this file assume that the reader is familiar
 ///   with the 6502 architecture. If you're not, consult 6502.org.
 ///
-/// @copyright (c) 2014 Matthew Howell
+/// @copyright (c) Molly Howell
 ///  This code is released under the MIT license,
 ///  a copy of which is available in the associated LICENSE file,
 ///  or at http://opensource.org/licenses/MIT
