@@ -1,3 +1,10 @@
+**_Updated with minor changes_**
+
+- Keeps track of the three-letter opcode from the last executed instruction. Could be useful for debugging, but done more for the sweeto neato.
+- Use ES6 class syntax for simplicity rather than typical prototypal method definitions
+- Make all methods and attributes public rather than defining a [public API with private methods and attributes](https://philipwalton.com/articles/implementing-private-and-protected-members-in-javascript/)
+
+
 MOS6502.js
 ==========
 This is an emulator for the MOS Technology 6502 microprocessor and a couple of its derivatives, written in JavaScript. It's been developed to serve as a component of an emulator for a larger system which incorporates a 6502 as its CPU.
