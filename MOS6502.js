@@ -60,7 +60,7 @@ class MOS6502 {
       
       this.deferred_i_flag_change = false;
       this.new_i_flag_state = 0;
-   };
+   }
 
    ///////////////////////////////////////////////////////////////////////////////
    /// @public run_instruction
@@ -139,7 +139,7 @@ class MOS6502 {
       }
       
       return this.cycle_counter;
-   };
+   }
 
    ///////////////////////////////////////////////////////////////////////////////
    /// @public interrupt
@@ -154,7 +154,7 @@ class MOS6502 {
          this.nmi_requested = true;
       else
          this.irq_requested = true;
-   };
+   }
 
    ///////////////////////////////////////////////////////////////////////////////
    /// The public API functions end here.
@@ -170,7 +170,7 @@ class MOS6502 {
              (this.flags.I << 2) |
              (this.flags.Z << 1) |
              (this.flags.C);
-   };
+   }
 
    set_status_register = function(operand)
    {
@@ -180,36 +180,36 @@ class MOS6502 {
       this.flags.I = (operand & 0x04) >>> 2;
       this.flags.Z = (operand & 0x02) >>> 1;
       this.flags.C = (operand & 0x01);
-   };
+   }
 
    push_byte = function(operand)
    {
       this.core.mem_write(this.sp | 0x100, operand);
       this.sp = (this.sp - 1) & 0xff;
-   };
+   }
 
    pop_byte() {
       this.sp = (this.sp + 1) & 0xff;
       return this.core.mem_read(this.sp | 0x100);
-   };
+   }
 
    push_pc = function(operand)
    {
       this.push_byte((this.pc & 0xff00) >>> 8);
       this.push_byte(this.pc & 0x00ff);
-   };
+   }
 
    pop_pc = function(operand)
    {
       this.pc = this.pop_byte();
       this.pc |= (this.pop_byte() << 8);
-   };
+   }
 
    set_nz_flags = function(value)
    {
       this.flags.N = (value & 0x80) ? 1 : 0;
       this.flags.Z = (value === 0) ? 1 : 0;
-   };
+   }
 
    ///////////////////////////////////////////////////////////////////////////////
    /// The way most instructions work in this emulator is that they set up
@@ -243,7 +243,7 @@ class MOS6502 {
          // Finally actually set the new PC.
          this.pc = (this.pc + offset) & 0xffff;
       }
-   };
+   }
 
    do_asl = function(address)
    {
@@ -257,7 +257,7 @@ class MOS6502 {
          this.a = operand;
       else
          this.core.mem_write(address, operand);
-   };
+   }
 
    do_lsr = function(address)
    {
@@ -272,7 +272,7 @@ class MOS6502 {
          this.a = operand;
       else
          this.core.mem_write(address, operand);
-   };
+   }
 
    do_rol = function(address)
    {
@@ -288,7 +288,7 @@ class MOS6502 {
          this.a = operand;
       else
          this.core.mem_write(address, operand);
-   };
+   }
 
    do_ror = function(address)
    {
@@ -305,32 +305,32 @@ class MOS6502 {
          this.a = operand;
       else
          this.core.mem_write(address, operand);
-   };
+   }
 
    do_bit = function(operand)
    {
       this.flags.N = (operand & 0x80) ? 1 : 0;
       this.flags.V = (operand & 0x40) ? 1 : 0;
       this.flags.Z = (operand & this.a) ? 0 : 1;
-   };
+   }
 
    do_ora = function(operand)
    {
       this.a |= operand;
       this.set_nz_flags(this.a);
-   };
+   }
 
    do_and = function(operand)
    {
       this.a &= operand;
       this.set_nz_flags(this.a);
-   };
+   }
 
    do_eor = function(operand)
    {
       this.a ^= operand;
       this.set_nz_flags(this.a);
-   };
+   }
 
    do_adc = function(operand)
    {
@@ -384,61 +384,61 @@ class MOS6502 {
          // Set the remaining flags.
          this.set_nz_flags(this.a);
       }
-   };
+   }
 
    do_sta = function(address)
    {
       this.core.mem_write(address, this.a);
-   };
+   }
 
    do_stx = function(address)
    {
       this.core.mem_write(address, this.x);
-   };
+   }
 
    do_sty = function(address)
    {
       this.core.mem_write(address, this.y);
-   };
+   }
 
    do_lda = function(operand)
    {
       this.a = operand;
       this.set_nz_flags(this.a);
-   };
+   }
 
    do_ldx = function(operand)
    {
       this.x = operand;
       this.set_nz_flags(this.x);
-   };
+   }
 
    do_ldy = function(operand)
    {
       this.y = operand;
       this.set_nz_flags(this.y);
-   };
+   }
 
    do_cmp = function(operand)
    {
       var result = this.a - operand;
       this.set_nz_flags(result);
       this.flags.C = (operand <= this.a) ? 1 : 0;
-   };
+   }
 
    do_cpx = function(operand)
    {
       var result = this.x - operand;
       this.set_nz_flags(result);
       this.flags.C = (operand <= this.x) ? 1 : 0;
-   };
+   }
 
    do_cpy = function(operand)
    {
       var result = this.y - operand;
       this.set_nz_flags(result);
       this.flags.C = (operand <= this.y) ? 1 : 0;
-   };
+   }
 
    do_sbc = function(operand)
    {
@@ -488,7 +488,7 @@ class MOS6502 {
       // Save carry for last, because it's used in the decimal mode calculation.
       // Set the carry flag, if we ended up *not* borrowing.
       this.flags.C = (result & 0xff00) ? 0 : 1;
-   };
+   }
 
    do_inc = function(address)
    {
@@ -496,7 +496,7 @@ class MOS6502 {
       operand = (operand + 1) & 0xff;
       this.set_nz_flags(operand);
       this.core.mem_write(address, operand);
-   };
+   }
 
    do_dec = function(address)
    {
@@ -504,93 +504,93 @@ class MOS6502 {
       operand = (operand - 1) & 0xff;
       this.set_nz_flags(operand);
       this.core.mem_write(address, operand);
-   };
+   }
 
    // These functions handle the undocumented instructions.
    do_sax = function(address)
    {
       this.core.mem_write(address, this.a & this.x);
-   };
+   }
    do_lax = function(operand)
    {
       this.do_lda(operand);
       this.do_ldx(operand);
-   };
+   }
    do_dcp = function(address)
    {
       this.do_dec(address);
       this.do_cmp(this.core.mem_read(address));
-   };
+   }
    do_ins = function(address)
    {
       this.do_inc(address);
       this.do_sbc(this.core.mem_read(address));
-   };
+   }
    do_aso = function(address)
    {
       this.do_asl(address);
       this.do_ora(this.core.mem_read(address));
-   };
+   }
    do_rla = function(address)
    {
       this.do_rol(address);
       this.do_and(this.core.mem_read(address));
-   };
+   }
    do_lse = function(address)
    {
       this.do_lsr(address);
       this.do_eor(this.core.mem_read(address));
-   };
+   }
    do_rra = function(address)
    {
       this.do_ror(address);
       this.do_adc(this.core.mem_read(address));
-   };
+   }
    do_anc = function(operand)
    {
       this.do_and(operand);
       this.flags.C = this.flags.N;
-   };
+   }
    do_alr = function(operand)
    {
       this.do_and(operand);
       this.do_lsr();
-   };
+   }
    do_arr = function(operand)
    {
       this.do_and(operand);
       this.do_ror();
-   };
+   }
    do_xaa = function(operand)
    {
       this.a = this.x;
       this.do_and(operand);
-   };
+   }
    do_oal = function(operand)
    {
       this.do_ora(0xee);
       this.do_and(operand);
       this.x = this.a;
-   };
+   }
    do_axs = function(operand)
    {
       var temp = this.a & this.x;
       temp -= operand;
       this.flags.C = (temp > 0) ? 1 : 0;
       this.x = temp & 0xff;
-   };
+   }
    do_las = function(operand)
    {
       this.sp &= operand & 0xff;
       this.a = this.x = this.sp;
       this.set_nz_flags(this.sp);
-   };
+   }
    do_kill() {
       console.log("Got kill instruction at PC=" + this.pc.toString(16));
-   };
+   }
    do_unstable() {
       console.log("Got unstable instruction at PC=" + this.pc.toString(16));
-   };
+   }
 
    ///////////////////////////////////////////////////////////////////////////////
    /// These functions handle getting the operand for each addressing mode.
@@ -598,7 +598,7 @@ class MOS6502 {
    get_imm8_operand() {
       this.pc = (this.pc + 1) & 0xffff;
       return this.core.mem_read(this.pc);
-   };
+   }
 
    // This isn't a real addressing mode, it's used for instructions that
    //  operand on a memory address in place, so the real argument
@@ -609,25 +609,25 @@ class MOS6502 {
       this.pc = (this.pc + 1) & 0xffff;
       var immediate_hi = this.core.mem_read(this.pc);
       return immediate_lo | (immediate_hi << 8);   
-   };
+   }
 
    get_zero_page_operand() {
       this.pc = (this.pc + 1) & 0xffff;
       var immediate = this.core.mem_read(this.pc);
       return this.core.mem_read(immediate);
-   };
+   }
 
    get_zero_page_x_operand() {
       this.pc = (this.pc + 1) & 0xffff;
       var immediate = this.core.mem_read(this.pc);
       return this.core.mem_read((immediate + this.x) & 0xff);
-   };
+   }
 
    get_zero_page_y_operand() {
       this.pc = (this.pc + 1) & 0xffff;
       var immediate = this.core.mem_read(this.pc);
       return this.core.mem_read((immediate + this.y) & 0xff);
-   };
+   }
 
    get_absolute_operand() {
       this.pc = (this.pc + 1) & 0xffff;
@@ -635,7 +635,7 @@ class MOS6502 {
       this.pc = (this.pc + 1) & 0xffff;
       var immediate_hi = this.core.mem_read(this.pc);
       return this.core.mem_read(immediate_lo | (immediate_hi << 8));
-   };
+   }
 
    get_absolute_x_operand() {
       this.pc = (this.pc + 1) & 0xffff;
@@ -650,7 +650,7 @@ class MOS6502 {
          this.cycle_counter++;
       
       return operand;
-   };
+   }
 
    get_absolute_y_operand() {
       this.pc = (this.pc + 1) & 0xffff;
@@ -665,15 +665,15 @@ class MOS6502 {
          this.cycle_counter++;
       
       return operand;
-   };
+   }
 
    get_indirect_x_operand() {
       return this.core.mem_read(this.get_indirect_x_address());
-   };
+   }
 
    get_indirect_y_operand() {
       return this.core.mem_read(this.get_indirect_y_address());
-   };
+   }
 
    // These two modes are used only by some of the undocumented instructions.
    get_indirect_x_address() {
@@ -682,7 +682,7 @@ class MOS6502 {
           address = this.core.mem_read((immediate + this.x) & 0xff) |
                    (this.core.mem_read((immediate + this.x + 1) & 0xff) << 8);
       return address;
-   };
+   }
    get_indirect_y_address() {
       this.pc = (this.pc + 1) & 0xffff;
       var immediate = this.core.mem_read(this.pc),
@@ -694,7 +694,7 @@ class MOS6502 {
          this.cycle_counter++;
       
       return address & 0xffff;
-   };
+   }
 
    ///////////////////////////////////////////////////////////////////////////////
    /// This table contains the implementations for all instructions.
