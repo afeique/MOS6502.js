@@ -3,7 +3,7 @@
 - Keeps track of the three-letter opcode from the last executed instruction. Could be useful for debugging, but done more for the sweeto neato.
 - Use ES6 class syntax for simplicity rather than typical prototypal method definitions
 - Make all methods and attributes public rather than defining a [public API with private methods and attributes](https://philipwalton.com/articles/implementing-private-and-protected-members-in-javascript/)
-
+- Use `export` to expose the class for import
 
 MOS6502.js
 ==========
