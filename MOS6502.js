@@ -156,7 +156,7 @@ export class MOS6502 {
    ///
    /// @param non_maskable - true if this is an NMI, false if a normal IRQ
    ///////////////////////////////////////////////////////////////////////////////
-   interrupt = function(non_maskable)
+   interrupt(non_maskable)
    {
       if (non_maskable)
          this.nmi_requested = true;
@@ -180,7 +180,7 @@ export class MOS6502 {
              (this.flags.C);
    }
 
-   set_status_register = function(operand)
+   set_status_register(operand)
    {
       this.flags.N = (operand & 0x80) >>> 7;
       this.flags.V = (operand & 0x40) >>> 6;
@@ -190,7 +190,7 @@ export class MOS6502 {
       this.flags.C = (operand & 0x01);
    }
 
-   push_byte = function(operand)
+   push_byte(operand)
    {
       this.core.mem_write(this.sp | 0x100, operand);
       this.sp = (this.sp - 1) & 0xff;
@@ -201,19 +201,19 @@ export class MOS6502 {
       return this.core.mem_read(this.sp | 0x100);
    }
 
-   push_pc = function(operand)
+   push_pc(operand)
    {
       this.push_byte((this.pc & 0xff00) >>> 8);
       this.push_byte(this.pc & 0x00ff);
    }
 
-   pop_pc = function(operand)
+   pop_pc(operand)
    {
       this.pc = this.pop_byte();
       this.pc |= (this.pop_byte() << 8);
    }
 
-   set_nz_flags = function(value)
+   set_nz_flags(value)
    {
       this.flags.N = (value & 0x80) ? 1 : 0;
       this.flags.Z = (value === 0) ? 1 : 0;
@@ -225,7 +225,7 @@ export class MOS6502 {
    ///  utility function that handles all variations of that instruction.
    /// Those utility functions begin here.
    ///////////////////////////////////////////////////////////////////////////////
-   do_relative_branch = function(test)
+   do_relative_branch(test)
    {
       // Advance the PC to the operand in any case.
       this.pc = (this.pc + 1) & 0xffff;
@@ -253,7 +253,7 @@ export class MOS6502 {
       }
    }
 
-   do_asl = function(address)
+   do_asl(address)
    {
       // Address being undefined means the operand is the accumulator; it's a memory byte otherwise.
       var operand = (address === undefined) ? this.a : this.core.mem_read(address);
@@ -267,7 +267,7 @@ export class MOS6502 {
          this.core.mem_write(address, operand);
    }
 
-   do_lsr = function(address)
+   do_lsr(address)
    {
       // Address being undefined means the operand is the accumulator; it's a memory byte otherwise.
       var operand = (address === undefined) ? this.a : this.core.mem_read(address);
@@ -282,7 +282,7 @@ export class MOS6502 {
          this.core.mem_write(address, operand);
    }
 
-   do_rol = function(address)
+   do_rol(address)
    {
       // Address being undefined means the operand is the accumulator; it's a memory byte otherwise.
       var operand = (address === undefined) ? this.a : this.core.mem_read(address);
@@ -298,7 +298,7 @@ export class MOS6502 {
          this.core.mem_write(address, operand);
    }
 
-   do_ror = function(address)
+   do_ror(address)
    {
       // Address being undefined means the operand is the accumulator; it's a memory byte otherwise.
       var operand = (address === undefined) ? this.a : this.core.mem_read(address);
@@ -315,32 +315,32 @@ export class MOS6502 {
          this.core.mem_write(address, operand);
    }
 
-   do_bit = function(operand)
+   do_bit(operand)
    {
       this.flags.N = (operand & 0x80) ? 1 : 0;
       this.flags.V = (operand & 0x40) ? 1 : 0;
       this.flags.Z = (operand & this.a) ? 0 : 1;
    }
 
-   do_ora = function(operand)
+   do_ora(operand)
    {
       this.a |= operand;
       this.set_nz_flags(this.a);
    }
 
-   do_and = function(operand)
+   do_and(operand)
    {
       this.a &= operand;
       this.set_nz_flags(this.a);
    }
 
-   do_eor = function(operand)
+   do_eor(operand)
    {
       this.a ^= operand;
       this.set_nz_flags(this.a);
    }
 
-   do_adc = function(operand)
+   do_adc(operand)
    {
       // This instruction behaves totally differently in decimal mode.
       // Decimal mode does not exist if we're an NES this right now.
@@ -394,61 +394,61 @@ export class MOS6502 {
       }
    }
 
-   do_sta = function(address)
+   do_sta(address)
    {
       this.core.mem_write(address, this.a);
    }
 
-   do_stx = function(address)
+   do_stx(address)
    {
       this.core.mem_write(address, this.x);
    }
 
-   do_sty = function(address)
+   do_sty(address)
    {
       this.core.mem_write(address, this.y);
    }
 
-   do_lda = function(operand)
+   do_lda(operand)
    {
       this.a = operand;
       this.set_nz_flags(this.a);
    }
 
-   do_ldx = function(operand)
+   do_ldx(operand)
    {
       this.x = operand;
       this.set_nz_flags(this.x);
    }
 
-   do_ldy = function(operand)
+   do_ldy(operand)
    {
       this.y = operand;
       this.set_nz_flags(this.y);
    }
 
-   do_cmp = function(operand)
+   do_cmp(operand)
    {
       var result = this.a - operand;
       this.set_nz_flags(result);
       this.flags.C = (operand <= this.a) ? 1 : 0;
    }
 
-   do_cpx = function(operand)
+   do_cpx(operand)
    {
       var result = this.x - operand;
       this.set_nz_flags(result);
       this.flags.C = (operand <= this.x) ? 1 : 0;
    }
 
-   do_cpy = function(operand)
+   do_cpy(operand)
    {
       var result = this.y - operand;
       this.set_nz_flags(result);
       this.flags.C = (operand <= this.y) ? 1 : 0;
    }
 
-   do_sbc = function(operand)
+   do_sbc(operand)
    {
       // Clamp the two operands at 8 bits.
       this.a &= 0xff;
@@ -498,7 +498,7 @@ export class MOS6502 {
       this.flags.C = (result & 0xff00) ? 0 : 1;
    }
 
-   do_inc = function(address)
+   do_inc(address)
    {
       var operand = this.core.mem_read(address);
       operand = (operand + 1) & 0xff;
@@ -506,7 +506,7 @@ export class MOS6502 {
       this.core.mem_write(address, operand);
    }
 
-   do_dec = function(address)
+   do_dec(address)
    {
       var operand = this.core.mem_read(address);
       operand = (operand - 1) & 0xff;
@@ -515,79 +515,79 @@ export class MOS6502 {
    }
 
    // These functions handle the undocumented instructions.
-   do_sax = function(address)
+   do_sax(address)
    {
       this.core.mem_write(address, this.a & this.x);
    }
-   do_lax = function(operand)
+   do_lax(operand)
    {
       this.do_lda(operand);
       this.do_ldx(operand);
    }
-   do_dcp = function(address)
+   do_dcp(address)
    {
       this.do_dec(address);
       this.do_cmp(this.core.mem_read(address));
    }
-   do_ins = function(address)
+   do_ins(address)
    {
       this.do_inc(address);
       this.do_sbc(this.core.mem_read(address));
    }
-   do_aso = function(address)
+   do_aso(address)
    {
       this.do_asl(address);
       this.do_ora(this.core.mem_read(address));
    }
-   do_rla = function(address)
+   do_rla(address)
    {
       this.do_rol(address);
       this.do_and(this.core.mem_read(address));
    }
-   do_lse = function(address)
+   do_lse(address)
    {
       this.do_lsr(address);
       this.do_eor(this.core.mem_read(address));
    }
-   do_rra = function(address)
+   do_rra(address)
    {
       this.do_ror(address);
       this.do_adc(this.core.mem_read(address));
    }
-   do_anc = function(operand)
+   do_anc(operand)
    {
       this.do_and(operand);
       this.flags.C = this.flags.N;
    }
-   do_alr = function(operand)
+   do_alr(operand)
    {
       this.do_and(operand);
       this.do_lsr();
    }
-   do_arr = function(operand)
+   do_arr(operand)
    {
       this.do_and(operand);
       this.do_ror();
    }
-   do_xaa = function(operand)
+   do_xaa(operand)
    {
       this.a = this.x;
       this.do_and(operand);
    }
-   do_oal = function(operand)
+   do_oal(operand)
    {
       this.do_ora(0xee);
       this.do_and(operand);
       this.x = this.a;
    }
-   do_axs = function(operand)
+   do_axs(operand)
    {
       var temp = this.a & this.x;
       temp -= operand;
       this.flags.C = (temp > 0) ? 1 : 0;
       this.x = temp & 0xff;
    }
-   do_las = function(operand)
+   do_las(operand)
    {
       this.sp &= operand & 0xff;
       this.a = this.x = this.sp;
