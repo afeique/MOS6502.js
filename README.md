@@ -1,9 +1,10 @@
 **_Updated with minor changes_**
 
 - Keeps track of the three-letter opcode from the last executed instruction. Could be useful for debugging, but done more for the sweeto neato.
-- Use ES6 class syntax for simplicity rather than typical prototypal method definitions
+- Use ES6 class syntax for simplicity rather than prototypal class and method definitions.
 - Make all methods and attributes public rather than defining a [public API with private methods and attributes](https://philipwalton.com/articles/implementing-private-and-protected-members-in-javascript/)
-- Use `export` to expose the class for import.
+- Use `export` to expose the class for module import.
+- Move things around for validity and to ensure the class can be built using `webpack`.
 
 MOS6502.js
 ==========
