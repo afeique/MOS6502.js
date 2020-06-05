@@ -35,7 +35,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 /// We'll begin with the object constructor and the public API functions.
 ///////////////////////////////////////////////////////////////////////////////
-export class MOS6502 {
+class MOS6502 {
    constructor(core, options) {
       // The first argument to this constructor should be an object containing 2 functions:
       // mem_read(address) should return the byte at the given memory address, and
